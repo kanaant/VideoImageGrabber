@@ -30,8 +30,8 @@
 
 ## Other
 
-- [ ] add a card with information about the Video and the meta data of the video
+- [x] add a card with information about the Video and the meta data of the video
 - [x] right side card with images captured from the video by the user hot key (x)
 - [x] add a button to download all images or download images individually.
 - [x] add a button to delete all images or delete images individually.
-- [ ] add a nav bar with basic tools to rotate the video or scale/crop to an area
+- [x] add a nav bar with basic tools to rotate the video or scale/crop to an area

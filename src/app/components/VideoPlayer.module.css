@@ -49,7 +49,8 @@
 
 .video {
   width: 100%;
-  max-height: 80vh;
+  max-height: calc(100vh - 250px);
+  object-fit: contain;
   display: block;
 }
 
@@ -223,8 +224,16 @@
 }
 
 /* Captured Images Panel */
-.capturedPanel {
+.rightColumn {
   width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+.capturedPanel {
+  width: 100%;
   flex-shrink: 0;
   background: rgba(26, 26, 26, 0.8);
   backdrop-filter: blur(10px);
@@ -233,8 +242,8 @@
   padding: 1rem;
   display: flex;
   flex-direction: column;
-  max-height: 80vh;
-  overflow: hidden;
+  height: fit-content;
+  max-height: calc(100vh - 300px); /* Adjust for info card height */
 }
 
 .capturedHeader {
@@ -369,7 +378,7 @@
   background: #f0f0f0;
 }
 
-.fpsControl {
+.speedControl {
   display: flex;
   align-items: center;
   gap: 0.35rem;
@@ -377,15 +386,519 @@
   font-size: 0.75rem;
 }
 
-.fpsInput {
-  width: 50px;
+.speedSelect {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: white;
-  padding: 0.25rem 0.4rem;
+  padding: 0.35rem 0.5rem;
   border-radius: 0.35rem;
   font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.speedSelect option {
+  background: #1a1a1a;
+  color: white;
+}
+
+/* Mode Tabs */
+.modeTabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.modeTab {
+  padding: 0.6rem 1.2rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.modeTab:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.modeTab.active {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: white;
+}
+
+.modeTabBadge {
+  background: rgba(0, 200, 100, 0.3);
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+}
+
+/* Review Mode Panel */
+.reviewPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+}
+
+.previewArea {
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 1rem;
+  min-height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.singlePreview {
+  position: relative;
+  max-width: 100%;
+  max-height: calc(100vh - 300px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.singlePreview img {
+  max-width: 100%;
+  max-height: calc(100vh - 300px);
+  object-fit: contain;
+  border-radius: 0.5rem;
+}
+
+.previewTime {
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.35rem;
+  font-family: monospace;
+}
+
+.splitView {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+  height: 100%;
+  padding: 1rem;
+}
+
+.splitPanel {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 0.75rem;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  overflow: hidden;
+  min-height: 200px;
+  max-height: calc(100vh - 300px);
+}
+
+.splitPanel:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.splitPanel.focused {
+  border-color: rgba(0, 150, 255, 0.6);
+  box-shadow: 0 0 20px rgba(0, 150, 255, 0.2);
+}
+
+.splitPanel img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.panelTime {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 0.75rem;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 0.25rem 0.6rem;
+  border-radius: 0.35rem;
+  font-size: 0.75rem;
+  font-family: monospace;
+}
+
+.focusIndicator {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: rgba(0, 150, 255, 0.8);
+  color: white;
+  padding: 0.2rem 0.6rem;
+  border-radius: 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.emptyPanel {
+  color: rgba(255, 255, 255, 0.4);
   text-align: center;
+}
+
+.emptyPanel p {
+  margin: 0.5rem 0;
+  font-size: 0.85rem;
+}
+
+.activeToggle {
+  background: rgba(0, 150, 255, 0.3) !important;
+  border: 1px solid rgba(0, 150, 255, 0.5) !important;
+}
+
+.inSplit {
+  border-color: rgba(0, 200, 100, 0.6) !important;
+}
+
+.splitBadge {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  background: rgba(0, 150, 255, 0.9);
+  color: white;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: bold;
+}
+
+.noPreview {
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
+}
+
+.noPreview p {
+  margin: 0.5rem 0;
+}
+
+/* Adjustment Toolbar */
+.adjustmentToolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: rgba(26, 26, 26, 0.8);
+  border-radius: 0.5rem;
+}
+
+.toolbarGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toolButton {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.toolButton:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.toolButton span {
+  display: inline;
+}
+
+.resetButton {
+  background: rgba(255, 50, 50, 0.2);
+  color: #ffcccc;
+}
+
+.resetButton:hover {
+  background: rgba(255, 50, 50, 0.3);
+}
+
+.cropSelect {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 0.4rem;
+  border-radius: 0.35rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-left: 0.25rem;
+}
+
+.cropSelect option {
+  background: #1a1a1a;
+  color: white;
+}
+
+/* Crop Overlay */
+.cropLayer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 50;
+  cursor: crosshair;
+}
+
+.cropBox {
+  position: absolute;
+  border: 2px solid #00ddff;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+  cursor: move;
+}
+
+/* 3x3 Grid Lines */
+.cropBox::before,
+.cropBox::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  border-color: rgba(255, 255, 255, 0.3);
+  border-style: solid;
+}
+
+.cropBox::before {
+  top: 0;
+  bottom: 0;
+  left: 33.33%;
+  right: 33.33%;
+  border-width: 0 1px;
+}
+
+.cropBox::after {
+  left: 0;
+  right: 0;
+  top: 33.33%;
+  bottom: 33.33%;
+  border-width: 1px 0;
+}
+
+.cropHandle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #00ddff;
+  border: 1px solid white;
+  border-radius: 50%;
+  z-index: 51;
+}
+
+.handleNw { top: -5px; left: -5px; cursor: nw-resize; }
+.handleNe { top: -5px; right: -5px; cursor: ne-resize; }
+.handleSw { bottom: -5px; left: -5px; cursor: sw-resize; }
+.handleSe { bottom: -5px; right: -5px; cursor: se-resize; }
+.handleN { top: -5px; left: 50%; transform: translateX(-50%); cursor: n-resize; }
+.handleS { bottom: -5px; left: 50%; transform: translateX(-50%); cursor: s-resize; }
+.handleW { left: -5px; top: 50%; transform: translateY(-50%); cursor: w-resize; }
+.handleE { right: -5px; top: 50%; transform: translateY(-50%); cursor: e-resize; }
+
+/* Apply Crop Mode */
+.isAppliedCrop {
+    transform-origin: center center;
+    transition: transform 0.3s ease;
+}
+
+/* Video Info Card */
+.infoCard {
+  background: rgba(26, 26, 26, 0.8);
+  backdrop-filter: blur(10px);
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.infoCardHeader {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.infoClose {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  padding: 0.2rem;
+}
+
+.infoClose:hover {
+  color: white;
+}
+
+.infoRow {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.infoRow:last-child {
+  margin-bottom: 0;
+}
+
+.infoLabel {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.infoValue {
+  color: white;
+  font-family: monospace;
+  font-weight: 500;
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+.infoToggle {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 100;
+  transition: all 0.2s;
+}
+
+.infoToggle:hover {
+  background: rgba(0, 0, 0, 0.8);
+  transform: scale(1.05);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.reviewActions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: rgba(26, 26, 26, 0.8);
+  border-radius: 0.5rem;
+}
+
+.dangerButton {
+  background: rgba(220, 53, 69, 0.2) !important;
+  border: 1px solid rgba(220, 53, 69, 0.4) !important;
+}
+
+.dangerButton:hover {
+  background: rgba(220, 53, 69, 0.3) !important;
+}
+
+.imageCarousel {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: rgba(26, 26, 26, 0.8);
+  border-radius: 1rem;
+  overflow-x: auto;
+}
+
+.carouselItem {
+  flex-shrink: 0;
+  width: 120px;
+  position: relative;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+}
+
+.carouselItem:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.carouselItem.previewing {
+  border-color: rgba(0, 150, 255, 0.6);
+}
+
+.carouselItem.selected {
+  border-color: rgba(0, 200, 100, 0.8);
+}
+
+.carouselItem img {
+  width: 100%;
+  height: 80px;
+  object-fit: cover;
+}
+
+.carouselItem span {
+  display: block;
+  text-align: center;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 0.25rem;
+  font-family: monospace;
+}
+
+.selectedBadge {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  background: rgba(0, 200, 100, 0.9);
+  color: white;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: bold;
 }
 
 /* Responsive - stack on mobile */
@@ -406,5 +919,13 @@
 
   .capturedItem {
     width: calc(33.33% - 0.5rem);
+  }
+
+  .compareView {
+    flex-direction: column;
+  }
+
+  .carouselItem {
+    width: 100px;
   }
 }

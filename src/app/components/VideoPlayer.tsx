@@ -13,6 +13,14 @@ import {
   Download,
   Trash2,
   Image as ImageIcon,
+  RotateCw,
+  FlipHorizontal,
+  FlipVertical2,
+  Crop,
+  Info,
+  ChevronDown,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import styles from "./VideoPlayer.module.css";
 
@@ -23,23 +31,72 @@ interface CapturedImage {
   timestamp: Date;
 }
 
+interface VideoMetadata {
+  width: number;
+  height: number;
+  duration: number;
+  fileSize: number;
+  fileName: string;
+}
+
+interface CropRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export default function VideoPlayer() {
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [fps, setFps] = useState(30);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const [thumbnails, setThumbnails] = useState<{ time: number; url: string }[]>([]);
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomCenter, setZoomCenter] = useState(0);
   const [capturedImages, setCapturedImages] = useState<CapturedImage[]>([]);
+  const [mode, setMode] = useState<'capture' | 'review'>('capture');
+  const [previewImageId, setPreviewImageId] = useState<string | null>(null);
+  const [isSplitView, setIsSplitView] = useState(false);
+  const [focusedPanel, setFocusedPanel] = useState<'left' | 'right'>('left');
+  const [splitImages, setSplitImages] = useState<{ left: string | null; right: string | null }>({ left: null, right: null });
+  
+  // Video metadata
+  const [videoMetadata, setVideoMetadata] = useState<VideoMetadata | null>(null);
+  const [isInfoExpanded, setIsInfoExpanded] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  
+  // Adjustment states
+  const [rotation, setRotation] = useState(0); // 0, 90, 180, 270
+  const [flipH, setFlipH] = useState(false);
+  const [flipV, setFlipV] = useState(false);
+  const [isCropping, setIsCropping] = useState(false);
+  const [cropRegion, setCropRegion] = useState<CropRegion | null>(null);
+  const [cropAspect, setCropAspect] = useState<string>('free'); // 'free', '16:9', '4:3', '1:1'
+  
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoWrapperRef = useRef<HTMLDivElement>(null);
 
   const processFile = (file: File) => {
     const url = URL.createObjectURL(file);
     setVideoSrc(url);
+    setVideoMetadata((prev) => ({
+      ...prev!,
+      fileSize: file.size,
+      fileName: file.name,
+      width: 0,
+      height: 0,
+      duration: 0,
+    }));
+    // Reset adjustments
+    setRotation(0);
+    setFlipH(false);
+    setFlipV(false);
+    setCropRegion(null);
+    setIsCropping(false);
     generateThumbnails(file);
   };
 
@@ -147,7 +204,29 @@ export default function VideoPlayer() {
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
       setDuration(videoRef.current.duration);
+      setVideoMetadata((prev) => ({
+        ...prev!,
+        width: videoRef.current!.videoWidth,
+        height: videoRef.current!.videoHeight,
+        duration: videoRef.current!.duration,
+      }));
     }
+  };
+
+  // Rotation helper
+  const rotateVideo = () => {
+    setRotation((prev) => (prev + 90) % 360);
+  };
+
+
+
+  // Format file size
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   // Global mouseup/touchend to ensure zoom deactivates even if released outside slider
@@ -182,6 +261,7 @@ export default function VideoPlayer() {
   const seekFrame = useCallback(
     (direction: "forward" | "backward") => {
       if (videoRef.current) {
+        const fps = 30; // Standard frame rate for seeking
         const frameDuration = 1 / fps;
         const newTime =
           direction === "forward"
@@ -195,7 +275,7 @@ export default function VideoPlayer() {
         setCurrentTime(newTime);
       }
     },
-    [fps],
+    [],
   );
 
   const seekToTime = (time: number) => {
@@ -210,12 +290,54 @@ export default function VideoPlayer() {
     if (!videoRef.current) return;
 
     const canvas = document.createElement("canvas");
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
+    const video = videoRef.current;
+    
+    // Determine FULL transformed dimensions
+    let fullW, fullH;
+    if (rotation === 90 || rotation === 270) {
+      fullW = video.videoHeight;
+      fullH = video.videoWidth;
+    } else {
+      fullW = video.videoWidth;
+      fullH = video.videoHeight;
+    }
+
+    // Determine Crop Rect (relative to full transformed frame)
+    let cx = 0, cy = 0, cw = fullW, ch = fullH;
+    if (cropRegion) {
+        cx = (cropRegion.x / 100) * fullW;
+        cy = (cropRegion.y / 100) * fullH;
+        cw = (cropRegion.width / 100) * fullW;
+        ch = (cropRegion.height / 100) * fullH;
+    }
+    
+    // Set canvas to crop size
+    canvas.width = cw;
+    canvas.height = ch;
+    
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    // Apply adjustments
+    ctx.save();
+    
+    // 1. Shift View to Crop Origin
+    ctx.translate(-cx, -cy);
+
+    // 2. Move to Center of FULL image
+    ctx.translate(fullW / 2, fullH / 2);
+    
+    // 3. Rotate
+    ctx.rotate((rotation * Math.PI) / 180);
+    
+    // 4. Flip
+    ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
+    
+    // 5. Draw Video Centered (Always -W/2, -H/2)
+    ctx.drawImage(video, -video.videoWidth / 2, -video.videoHeight / 2);
+    
+    ctx.restore();
+
     const url = canvas.toDataURL("image/png");
 
     const newImage: CapturedImage = {
@@ -226,7 +348,7 @@ export default function VideoPlayer() {
     };
 
     setCapturedImages((prev) => [...prev, newImage]);
-  }, [currentTime]);
+  }, [currentTime, rotation, flipH, flipV, cropRegion]);
 
   // Delete a captured image
   const deleteImage = (id: string) => {
@@ -378,18 +500,372 @@ export default function VideoPlayer() {
         </div>
       ) : (
         <>
+          {/* Mode Tabs */}
+          <div className={styles.modeTabs}>
+            <button
+              className={`${styles.modeTab} ${mode === 'capture' ? styles.active : ''}`}
+              onClick={() => setMode('capture')}
+            >
+              <Play size={16} />
+              Capture
+            </button>
+            {capturedImages.length > 0 && (
+              <button
+                className={`${styles.modeTab} ${mode === 'review' ? styles.active : ''}`}
+                onClick={() => setMode('review')}
+              >
+                <ImageIcon size={16} />
+                Review
+                <span className={styles.modeTabBadge}>{capturedImages.length}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Capture Mode */}
+          {mode === 'capture' && (
           <div className={styles.mainLayout}>
             {/* Video Section */}
             <div className={styles.videoSection}>
-              <div className={styles.videoWrapper}>
-                <video
-                  ref={videoRef}
-                  src={videoSrc}
-                  className={styles.video}
-                  onTimeUpdate={handleTimeUpdate}
-                  onLoadedMetadata={handleLoadedMetadata}
-                  onClick={togglePlay}
-                />
+              {/* Adjustment Toolbar */}
+              <div className={styles.adjustmentToolbar}>
+                <div className={styles.toolbarGroup}>
+                  <button 
+                    className={styles.toolButton}
+                    onClick={rotateVideo}
+                    title="Rotate 90°"
+                  >
+                    <RotateCw size={18} />
+                    <span>Rotate</span>
+                  </button>
+                  <button 
+                    className={`${styles.toolButton} ${flipH ? styles.activeToggle : ''}`}
+                    onClick={() => setFlipH(!flipH)}
+                    title="Flip Horizontal"
+                  >
+                    <FlipHorizontal size={18} />
+                    <span>Flip H</span>
+                  </button>
+                  <button 
+                    className={`${styles.toolButton} ${flipV ? styles.activeToggle : ''}`}
+                    onClick={() => setFlipV(!flipV)}
+                    title="Flip Vertical"
+                  >
+                    <FlipVertical2 size={18} />
+                    <span>Flip V</span>
+                  </button>
+                  <button 
+                    className={`${styles.toolButton} ${isCropping ? styles.activeToggle : ''}`}
+                    onClick={() => setIsCropping(!isCropping)}
+                    title="Crop"
+                  >
+                    <Crop size={18} />
+                    <span>Crop</span>
+                  </button>
+                  {isCropping && (
+                    <select 
+                      className={styles.cropSelect}
+                      value={cropAspect}
+                      onChange={(e) => setCropAspect(e.target.value)}
+                    >
+                      <option value="free">Free</option>
+                      <option value="16:9">16:9</option>
+                      <option value="4:3">4:3</option>
+                      <option value="1:1">1:1</option>
+                      <option value="9:16">9:16</option>
+                    </select>
+                  )}
+                </div>
+                {(rotation !== 0 || flipH || flipV || isCropping || cropRegion) && (
+                  <button 
+                    className={`${styles.toolButton} ${styles.resetButton}`}
+                    onClick={() => {
+                      setRotation(0);
+                      setFlipH(false);
+                      setFlipV(false);
+                      setCropRegion(null);
+                      setIsCropping(false);
+                      setCropAspect('free');
+                      setIsZoomed(false);
+                    }}
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+
+              <div 
+                className={styles.videoWrapper} 
+                ref={videoWrapperRef}
+                style={{
+                    aspectRatio: (() => {
+                        // Calculate base aspect ratio
+                        let baseW = 16, baseH = 9;
+                        if (videoMetadata) {
+                             if (rotation === 90 || rotation === 270) {
+                                 baseW = videoMetadata.height;
+                                 baseH = videoMetadata.width;
+                             } else {
+                                 baseW = videoMetadata.width;
+                                 baseH = videoMetadata.height;
+                             }
+                        }
+                        
+                        // If crop applied, adjust aspect ratio
+                        if (!isCropping && cropRegion) {
+                            // Crop dimensions are percentages of the base (rotated) dimensions
+                            return `${(baseW * (cropRegion.width / 100))} / ${(baseH * (cropRegion.height / 100))}`;
+                        }
+                        
+                        return `${baseW}/${baseH}`;
+                    })()
+                }}
+              >
+                {/* Transform Container for Zoom/Crop */}
+                <div 
+                    style={{
+                        width: '100%',
+                        height: '100%',
+                        position: 'relative',
+                        transform: (!isCropping && cropRegion) ? `scale(${100 / cropRegion.width}) translate(${-cropRegion.x}%, ${-cropRegion.y}%)` : 'none',
+                        transformOrigin: '0 0',
+                        transition: 'transform 0.3s ease'
+                    }}
+                >
+                    <video
+                      ref={videoRef}
+                      src={videoSrc}
+                      className={styles.video}
+                      muted={isMuted}
+                      style={{ 
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'contain',
+                          transform: [
+                              `rotate(${rotation}deg)`,
+                              flipH ? 'scaleX(-1)' : '',
+                              flipV ? 'scaleY(-1)' : '',
+                              (rotation === 90 || rotation === 270) && videoMetadata ? `scale(${videoMetadata.width / videoMetadata.height})` : ''
+                          ].filter(Boolean).join(' ')
+                       }}
+                      onTimeUpdate={handleTimeUpdate}
+                      onLoadedMetadata={handleLoadedMetadata}
+                      onClick={isCropping ? undefined : togglePlay}
+                    />
+                </div>
+
+                {/* Crop Overlay */}
+                {/* Crop Overlay */}
+                {isCropping && (
+                    <div 
+                        className={styles.cropLayer}
+                        onMouseDown={(e) => {
+                            if (!videoWrapperRef.current) return;
+                            const rect = videoWrapperRef.current.getBoundingClientRect();
+                            const clientX = e.clientX;
+                            const clientY = e.clientY;
+                            
+                            // Check collisions with handles or box
+                            // We need to know where the existing crop is in pixels to check collision?
+                            // Or better: attach handlers directly to the DOM elements (Box / Handles)
+                            // But keeping one main handler is cleaner for mouseup/move window events.
+                            
+                            // actually, let's use the stopPropagation approach on the box/handles 
+                            // to distinguish from "background click" (new crop).
+                            
+                            // Logic:
+                            // 1. If clicking blank area -> Start New Crop
+                            // 2. If clicking Box/Handle -> Handled by their specific onMouseDown (see below)
+                            
+                            const startX_pct = ((clientX - rect.left) / rect.width) * 100;
+                            const startY_pct = ((clientY - rect.top) / rect.height) * 100;
+                            
+                            const handleNewCropMove = (mv: MouseEvent) => {
+                                const currentX_pct = ((mv.clientX - rect.left) / rect.width) * 100;
+                                const currentY_pct = ((mv.clientY - rect.top) / rect.height) * 100;
+                                
+                                const x = Math.max(0, Math.min(100, Math.min(startX_pct, currentX_pct)));
+                                const y = Math.max(0, Math.min(100, Math.min(startY_pct, currentY_pct)));
+                                let w = Math.abs(currentX_pct - startX_pct);
+                                let h = Math.abs(currentY_pct - startY_pct);
+                                
+                                // Aspect Constraint (New Crop)
+                                if (cropAspect !== 'free') {
+                                    const aspectParts = cropAspect.split(':');
+                                    const targetRatio = parseFloat(aspectParts[0]) / parseFloat(aspectParts[1]); 
+                                    const pxRatio = rect.height / rect.width;
+                                    const pctRatio = targetRatio * pxRatio; 
+                                    
+                                    if (w / h > pctRatio) {
+                                        h = w / pctRatio;
+                                    } else {
+                                        w = h * pctRatio;
+                                    }
+                                }
+                                
+                                // Clamp
+                                if (x + w > 100) w = 100 - x;
+                                if (y + h > 100) h = 100 - y;
+                                
+                                setCropRegion({ x, y, width: w, height: h });
+                            };
+                            
+                            const handleNewCropUp = () => {
+                                window.removeEventListener('mousemove', handleNewCropMove);
+                                window.removeEventListener('mouseup', handleNewCropUp);
+                            };
+                            
+                            window.addEventListener('mousemove', handleNewCropMove);
+                            window.addEventListener('mouseup', handleNewCropUp);
+                            
+                            // Initial tiny region to start visual feedback immediately
+                            setCropRegion({ x: startX_pct, y: startY_pct, width: 0, height: 0 });
+                        }}
+                    >
+                        {cropRegion && (
+                            <div 
+                                className={styles.cropBox}
+                                style={{
+                                    left: `${cropRegion.x}%`,
+                                    top: `${cropRegion.y}%`,
+                                    width: `${cropRegion.width}%`,
+                                    height: `${cropRegion.height}%`
+                                }}
+                                onMouseDown={(e) => {
+                                    e.stopPropagation(); // Block "New Crop"
+                                    if (!videoWrapperRef.current) return;
+                                    
+                                    // Move Logic
+                                    const rect = videoWrapperRef.current.getBoundingClientRect();
+                                    const startX_px = e.clientX;
+                                    const startY_px = e.clientY;
+                                    const initialRegion = { ...cropRegion };
+                                    
+                                    const handleMoveDrag = (mv: MouseEvent) => {
+                                        const dx_px = mv.clientX - startX_px;
+                                        const dy_px = mv.clientY - startY_px;
+                                        
+                                        const dx_pct = (dx_px / rect.width) * 100;
+                                        const dy_pct = (dy_px / rect.height) * 100;
+                                        
+                                        let newX = initialRegion.x + dx_pct;
+                                        let newY = initialRegion.y + dy_pct;
+                                        
+                                        // Clamp
+                                        newX = Math.max(0, Math.min(100 - initialRegion.width, newX));
+                                        newY = Math.max(0, Math.min(100 - initialRegion.height, newY));
+                                        
+                                        setCropRegion({ ...initialRegion, x: newX, y: newY });
+                                    };
+                                    
+                                    const handleMoveUp = () => {
+                                        window.removeEventListener('mousemove', handleMoveDrag);
+                                        window.removeEventListener('mouseup', handleMoveUp);
+                                    };
+                                    
+                                    window.addEventListener('mousemove', handleMoveDrag);
+                                    window.addEventListener('mouseup', handleMoveUp);
+                                }}
+                            >
+                                {/* Handles */}
+                                {['nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e'].map((dir) => (
+                                    <div 
+                                        key={dir}
+                                        className={`${styles.cropHandle} ${styles['handle'+dir.charAt(0).toUpperCase() + dir.slice(1)]}`}
+                                        onMouseDown={(e) => {
+                                            e.stopPropagation(); // Block Move/New
+                                            if (!videoWrapperRef.current) return;
+                                            
+                                            const rect = videoWrapperRef.current.getBoundingClientRect();
+                                            const startX = e.clientX;
+                                            const startY = e.clientY;
+                                            const initialRegion = { ...cropRegion };
+                                            
+                                            const handleResize = (mv: MouseEvent) => {
+                                                const dx_px = mv.clientX - startX;
+                                                const dy_px = mv.clientY - startY;
+                                                const dx = (dx_px / rect.width) * 100;
+                                                const dy = (dy_px / rect.height) * 100;
+                                                
+                                                let { x, y, width, height } = initialRegion;
+                                                
+                                                // 1. Update raw dimensions based on direction
+                                                if (dir.includes('e')) width += dx;
+                                                if (dir.includes('w')) { x += dx; width -= dx; }
+                                                if (dir.includes('s')) height += dy;
+                                                if (dir.includes('n')) { y += dy; height -= dy; }
+                                                
+                                                // 2. Aspect Ratio Constraint
+                                                if (cropAspect !== 'free') {
+                                                     const aspectParts = cropAspect.split(':');
+                                                     const visualRatio = parseFloat(aspectParts[0]) / parseFloat(aspectParts[1]);
+                                                     const pxRatio = rect.height / rect.width; // scaling factor
+                                                     const pctRatio = visualRatio * pxRatio; // W / H
+                                                     
+                                                     // Decide which dimension is master based on handle
+                                                     // Corner handles: usually width dominant or logic to pick largest change?
+                                                     // Keep simple: W controls H usually, unless N/S handle
+                                                     
+                                                     if (dir === 'n' || dir === 's') {
+                                                         // Height master
+                                                         const newWidth = height * pctRatio;
+                                                         const wDiff = newWidth - width;
+                                                         width = newWidth;
+                                                         x -= wDiff / 2; // Center expansion
+                                                     } else if (dir === 'e' || dir === 'w') {
+                                                         // Width master
+                                                         const newHeight = width / pctRatio;
+                                                         const hDiff = newHeight - height;
+                                                         height = newHeight;
+                                                         y -= hDiff / 2;
+                                                     } else {
+                                                         // Corners
+                                                         // If width change is larger relative, lock height
+                                                         // Simplified: width master
+                                                         if (Math.abs(dx) > Math.abs(dy)) {
+                                                             const targetH = width / pctRatio;
+                                                             if (dir.includes('n')) y += (height - targetH);
+                                                             height = targetH;
+                                                         } else {
+                                                             const targetW = height * pctRatio;
+                                                             if (dir.includes('w')) x += (width - targetW);
+                                                             width = targetW;
+                                                         }
+                                                     }
+                                                }
+                                                
+                                                // 3. Normalize constraints (min size, boundary)
+                                                if (width < 0) {
+                                                    // Flip? Too complex for now, just clamp min
+                                                    width = 1; x = initialRegion.x; // naive fail-safe
+                                                }
+                                                if (height < 0) { height = 1; y = initialRegion.y; }
+
+                                                // Boundary Clamp (Push back)
+                                                // This is tricky with aspect ratio. 
+                                                // Simplified: Just clamp hard limits.
+                                                
+                                                if (x < 0) x = 0;
+                                                if (y < 0) y = 0;
+                                                if (x + width > 100) width = 100 - x;
+                                                if (y + height > 100) height = 100 - y;
+                                                
+                                                setCropRegion({ x, y, width, height });
+                                            };
+                                            
+                                            const handleResizeUp = () => {
+                                                 window.removeEventListener('mousemove', handleResize);
+                                                 window.removeEventListener('mouseup', handleResizeUp);
+                                            };
+                                            
+                                            window.addEventListener('mousemove', handleResize);
+                                            window.addEventListener('mouseup', handleResizeUp);
+                                        }}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
               </div>
 
               <div className={styles.controls}>
@@ -416,6 +892,13 @@ export default function VideoPlayer() {
                     >
                       <ChevronRight size={20} />
                     </button>
+                    <button
+                      className={styles.button}
+                      onClick={() => setIsMuted(!isMuted)}
+                      title={isMuted ? "Unmute" : "Mute"}
+                    >
+                      {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+                    </button>
                   </div>
 
                   <div className={styles.timeDisplay}>
@@ -428,17 +911,25 @@ export default function VideoPlayer() {
                   </div>
 
                   <div className={styles.buttonGroup}>
-                    <div className={styles.fpsControl}>
+                    <div className={styles.speedControl}>
                       <Settings size={14} />
-                      <input
-                        type="number"
-                        value={fps}
-                        onChange={(e) => setFps(Number(e.target.value))}
-                        min={1}
-                        max={120}
-                        className={styles.fpsInput}
-                      />
-                      <span>FPS</span>
+                      <select
+                        value={playbackSpeed}
+                        onChange={(e) => {
+                          const speed = parseFloat(e.target.value);
+                          setPlaybackSpeed(speed);
+                          if (videoRef.current) {
+                            videoRef.current.playbackRate = speed;
+                          }
+                        }}
+                        className={styles.speedSelect}
+                      >
+                        <option value={0.25}>0.25x</option>
+                        <option value={0.5}>0.5x</option>
+                        <option value={1}>1x</option>
+                        <option value={1.5}>1.5x</option>
+                        <option value={2}>2x</option>
+                      </select>
                     </div>
                     <button
                       className={`${styles.button} ${styles.captureButton}`}
@@ -548,47 +1039,219 @@ export default function VideoPlayer() {
               </p>
             </div>
 
-            {/* Captured Images Panel */}
-            <div className={styles.capturedPanel}>
-              <div className={styles.capturedHeader}>
-                <h3>
-                  <ImageIcon size={16} />
-                  Captured ({capturedImages.length})
-                </h3>
-                {capturedImages.length > 0 && (
-                  <div className={styles.capturedActions}>
-                    <button onClick={downloadAllImages} title="Download All">
-                      <Download size={14} />
-                    </button>
-                    <button onClick={deleteAllImages} title="Delete All">
-                      <Trash2 size={14} />
-                    </button>
+            {/* Right Column */}
+            <div className={styles.rightColumn}>
+               {/* Video Info Card */}
+               {videoMetadata && (
+                  <div className={styles.infoCard}>
+                    <div 
+                        className={styles.infoCardHeader} 
+                        onClick={() => setIsInfoExpanded(!isInfoExpanded)}
+                        style={{ cursor: 'pointer', justifyContent: 'space-between' }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Info size={16} />
+                            <span>Video Info</span>
+                        </div>
+                        {isInfoExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                    </div>
+                    {isInfoExpanded && (
+                        <>
+                            <div className={styles.infoRow}>
+                            <span className={styles.infoLabel}>Resolution</span>
+                            <span className={styles.infoValue}>{videoMetadata.width} x {videoMetadata.height}</span>
+                            </div>
+                            <div className={styles.infoRow}>
+                            <span className={styles.infoLabel}>Duration</span>
+                            <span className={styles.infoValue}>{formatTime(videoMetadata.duration)}</span>
+                            </div>
+                            <div className={styles.infoRow}>
+                            <span className={styles.infoLabel}>Size</span>
+                            <span className={styles.infoValue}>{formatFileSize(videoMetadata.fileSize)}</span>
+                            </div>
+                            <div className={styles.infoRow}>
+                            <span className={styles.infoLabel}>Name</span>
+                            <span className={styles.infoValue} title={videoMetadata.fileName}>
+                                {videoMetadata.fileName.length > 20 
+                                ? videoMetadata.fileName.substring(0, 17) + '...' 
+                                : videoMetadata.fileName}
+                            </span>
+                            </div>
+                        </>
+                    )}
                   </div>
                 )}
-              </div>
-              
-              <div className={styles.capturedGrid}>
-                {capturedImages.length === 0 ? (
-                  <p className={styles.emptyText}>Press <b>X</b> to capture frames</p>
-                ) : (
-                  capturedImages.map((img) => (
-                    <div key={img.id} className={styles.capturedItem}>
-                      <img src={img.url} alt={`Captured at ${img.time.toFixed(2)}s`} />
-                      <span className={styles.capturedTime}>{img.time.toFixed(2)}s</span>
-                      <div className={styles.capturedItemActions}>
-                        <button onClick={() => downloadImage(img)} title="Download">
-                          <Download size={12} />
-                        </button>
-                        <button onClick={() => deleteImage(img.id)} title="Delete">
-                          <X size={12} />
-                        </button>
-                      </div>
+
+              {/* Captured Images Panel */}
+              <div className={styles.capturedPanel}>
+                <div className={styles.capturedHeader}>
+                  <h3>
+                    <ImageIcon size={16} />
+                    Captured ({capturedImages.length})
+                  </h3>
+                  {capturedImages.length > 0 && (
+                    <div className={styles.capturedActions}>
+                      <button onClick={downloadAllImages} title="Download All">
+                        <Download size={14} />
+                      </button>
+                      <button onClick={deleteAllImages} title="Delete All">
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                  ))
-                )}
+                  )}
+                </div>
+                
+                <div className={styles.capturedGrid}>
+                  {capturedImages.length === 0 ? (
+                    <p className={styles.emptyText}>Press <b>X</b> to capture frames</p>
+                  ) : (
+                    capturedImages.map((img) => (
+                      <div key={img.id} className={styles.capturedItem}>
+                        <img src={img.url} alt={`Captured at ${img.time.toFixed(2)}s`} />
+                        <span className={styles.capturedTime}>{img.time.toFixed(2)}s</span>
+                        <div className={styles.capturedItemActions}>
+                          <button onClick={() => downloadImage(img)} title="Download">
+                            <Download size={12} />
+                          </button>
+                          <button onClick={() => deleteImage(img.id)} title="Delete">
+                            <X size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </div>
+          )}
+
+          {/* Review Mode */}
+          {mode === 'review' && capturedImages.length > 0 && (
+            <div className={styles.reviewPanel}>
+              {/* Preview Area */}
+              <div className={styles.previewArea}>
+                {isSplitView ? (
+                  <div className={styles.splitView}>
+                    {/* Left Panel */}
+                    <div
+                      className={`${styles.splitPanel} ${focusedPanel === 'left' ? styles.focused : ''}`}
+                      onClick={() => setFocusedPanel('left')}
+                    >
+                      {splitImages.left ? (() => {
+                        const img = capturedImages.find((i) => i.id === splitImages.left);
+                        return img ? (
+                          <>
+                            <img src={img.url} alt={`Left ${img.time.toFixed(2)}s`} />
+                            <span className={styles.panelTime}>{img.time.toFixed(2)}s</span>
+                          </>
+                        ) : <p>Click to focus, then select image</p>;
+                      })() : (
+                        <div className={styles.emptyPanel}>
+                          <ImageIcon size={32} />
+                          <p>Click here, then select image</p>
+                        </div>
+                      )}
+                      {focusedPanel === 'left' && <div className={styles.focusIndicator}>Active</div>}
+                    </div>
+
+                    {/* Right Panel */}
+                    <div
+                      className={`${styles.splitPanel} ${focusedPanel === 'right' ? styles.focused : ''}`}
+                      onClick={() => setFocusedPanel('right')}
+                    >
+                      {splitImages.right ? (() => {
+                        const img = capturedImages.find((i) => i.id === splitImages.right);
+                        return img ? (
+                          <>
+                            <img src={img.url} alt={`Right ${img.time.toFixed(2)}s`} />
+                            <span className={styles.panelTime}>{img.time.toFixed(2)}s</span>
+                          </>
+                        ) : <p>Click to focus, then select image</p>;
+                      })() : (
+                        <div className={styles.emptyPanel}>
+                          <ImageIcon size={32} />
+                          <p>Click here, then select image</p>
+                        </div>
+                      )}
+                      {focusedPanel === 'right' && <div className={styles.focusIndicator}>Active</div>}
+                    </div>
+                  </div>
+                ) : previewImageId ? (
+                  <div className={styles.singlePreview}>
+                    {(() => {
+                      const img = capturedImages.find((i) => i.id === previewImageId);
+                      return img ? (
+                        <>
+                          <img src={img.url} alt={`Preview ${img.time.toFixed(2)}s`} />
+                          <span className={styles.previewTime}>{img.time.toFixed(2)}s</span>
+                        </>
+                      ) : null;
+                    })()}
+                  </div>
+                ) : (
+                  <div className={styles.noPreview}>
+                    <ImageIcon size={48} />
+                    <p>Click an image below to preview</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions Bar */}
+              <div className={styles.reviewActions}>
+                <div className={styles.buttonGroup}>
+                  <button 
+                    className={`${styles.button} ${isSplitView ? styles.activeToggle : ''}`}
+                    onClick={() => {
+                      setIsSplitView(!isSplitView);
+                      if (!isSplitView) {
+                        setSplitImages({ left: null, right: null });
+                        setFocusedPanel('left');
+                      }
+                    }}
+                  >
+                    {isSplitView ? 'Single View' : 'Split View'}
+                  </button>
+                  <button className={styles.button} onClick={downloadAllImages}>
+                    <Download size={16} />
+                    Download All ({capturedImages.length})
+                  </button>
+                  <button className={`${styles.button} ${styles.dangerButton}`} onClick={deleteAllImages}>
+                    <Trash2 size={16} />
+                    Delete All
+                  </button>
+                </div>
+              </div>
+
+              {/* Image Carousel */}
+              <div className={styles.imageCarousel}>
+                {capturedImages.map((img) => (
+                  <div
+                    key={img.id}
+                    className={`${styles.carouselItem} ${previewImageId === img.id ? styles.previewing : ''} ${splitImages.left === img.id || splitImages.right === img.id ? styles.inSplit : ''}`}
+                    onClick={() => {
+                      if (isSplitView) {
+                        setSplitImages((prev) => ({
+                          ...prev,
+                          [focusedPanel]: img.id,
+                        }));
+                      } else {
+                        setPreviewImageId(img.id);
+                      }
+                    }}
+                  >
+                    <img src={img.url} alt={`${img.time.toFixed(2)}s`} />
+                    <span>{img.time.toFixed(2)}s</span>
+                    {(splitImages.left === img.id || splitImages.right === img.id) && (
+                      <div className={styles.splitBadge}>
+                        {splitImages.left === img.id ? 'L' : 'R'}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
