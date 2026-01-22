@@ -28,11 +28,10 @@
 
 - [ ] **Memory Optimization**: Optimize handling of large 4K video files to prevent crashes.
 
-
-
 ## Other
+
 - [ ] add a card with information about the Video and the meta data of the video
-- [ ] right side card with images captured from the video by the user  hot key (x)
-- [ ] add a button to download all images or download images individually.
-- [ ] add a button to delete all images or delete images individually.
-- [] add a nav bar with basic tools to rotate the video or scale/crop to an area 
+- [x] right side card with images captured from the video by the user hot key (x)
+- [x] add a button to download all images or download images individually.
+- [x] add a button to delete all images or delete images individually.
+- [ ] add a nav bar with basic tools to rotate the video or scale/crop to an area

@@ -9,8 +9,19 @@ import {
   Play,
   Pause,
   Settings,
+  X,
+  Download,
+  Trash2,
+  Image as ImageIcon,
 } from "lucide-react";
 import styles from "./VideoPlayer.module.css";
+
+interface CapturedImage {
+  id: string;
+  url: string;
+  time: number;
+  timestamp: Date;
+}
 
 export default function VideoPlayer() {
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
@@ -22,6 +33,7 @@ export default function VideoPlayer() {
   const [thumbnails, setThumbnails] = useState<{ time: number; url: string }[]>([]);
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomCenter, setZoomCenter] = useState(0);
+  const [capturedImages, setCapturedImages] = useState<CapturedImage[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -193,6 +205,56 @@ export default function VideoPlayer() {
       }
   };
 
+  // Capture current frame to collection
+  const captureFrame = useCallback(() => {
+    if (!videoRef.current) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    const url = canvas.toDataURL("image/png");
+
+    const newImage: CapturedImage = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      url,
+      time: currentTime,
+      timestamp: new Date(),
+    };
+
+    setCapturedImages((prev) => [...prev, newImage]);
+  }, [currentTime]);
+
+  // Delete a captured image
+  const deleteImage = (id: string) => {
+    setCapturedImages((prev) => prev.filter((img) => img.id !== id));
+  };
+
+  // Delete all captured images
+  const deleteAllImages = () => {
+    setCapturedImages([]);
+  };
+
+  // Download a single image
+  const downloadImage = (img: CapturedImage) => {
+    const a = document.createElement("a");
+    a.href = img.url;
+    a.download = `frame-${img.time.toFixed(2)}s.png`;
+    a.click();
+  };
+
+  // Download all images
+  const downloadAllImages = () => {
+    capturedImages.forEach((img, index) => {
+      setTimeout(() => {
+        downloadImage(img);
+      }, index * 100); // Stagger downloads to avoid browser blocking
+    });
+  };
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -207,12 +269,15 @@ export default function VideoPlayer() {
       } else if (e.key === " ") {
         e.preventDefault();
         togglePlay();
+      } else if (e.key === "x" || e.key === "X") {
+        e.preventDefault();
+        captureFrame();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [videoSrc, seekFrame, isPlaying]);
+  }, [videoSrc, seekFrame, isPlaying, captureFrame]);
 
   const saveFrame = async () => {
     if (!videoRef.current) return;
@@ -313,141 +378,216 @@ export default function VideoPlayer() {
         </div>
       ) : (
         <>
-          <div className={styles.videoWrapper}>
-            <video
-              ref={videoRef}
-              src={videoSrc}
-              className={styles.video}
-              onTimeUpdate={handleTimeUpdate}
-              onLoadedMetadata={handleLoadedMetadata}
-              onClick={togglePlay}
-            />
-          </div>
-
-          <div className={styles.controls}>
-            <div className={styles.controlsHeader}>
-              <div className={styles.buttonGroup}>
-                <button
-                  className={styles.button}
-                  onClick={() => seekFrame("backward")}
-                  title="Previous Frame (Left Arrow)"
-                >
-                  <ChevronLeft size={20} />
-                </button>
-                <button className={styles.button} onClick={togglePlay}>
-                  {isPlaying ? <Pause size={20} /> : <Play size={20} />}
-                </button>
-                <button
-                  className={styles.button}
-                  onClick={() => seekFrame("forward")}
-                  title="Next Frame (Right Arrow)"
-                >
-                  <ChevronRight size={20} />
-                </button>
+          <div className={styles.mainLayout}>
+            {/* Video Section */}
+            <div className={styles.videoSection}>
+              <div className={styles.videoWrapper}>
+                <video
+                  ref={videoRef}
+                  src={videoSrc}
+                  className={styles.video}
+                  onTimeUpdate={handleTimeUpdate}
+                  onLoadedMetadata={handleLoadedMetadata}
+                  onClick={togglePlay}
+                />
               </div>
 
-              <div className={styles.timeDisplay}>
-                {formatTime(currentTime)} / {formatTime(duration)}
-              </div>
-
-              <div className={styles.buttonGroup}>
-                <button
-                  className={`${styles.button} ${styles.primaryButton}`}
-                  onClick={saveFrame}
-                >
-                  <Save size={18} />
-                  <span>Save Frame</span>
-                </button>
-              </div>
-            </div>
-
-            <div className={styles.timeline}>
-              <input
-                type="range"
-                min={0}
-                max={duration}
-                step="0.01"
-                value={currentTime}
-                onChange={(e) => {
-                  if (videoRef.current) {
-                    const newTime = parseFloat(e.target.value);
-                    videoRef.current.currentTime = newTime;
-                    setCurrentTime(newTime);
-                    if (isZoomed) {
-                      setZoomCenter(newTime);
-                    }
-                  }
-                }}
-                onMouseDown={() => {
-                  console.log("Slider mousedown - activating zoom");
-                  setIsZoomed(true);
-                  setZoomCenter(currentTime);
-                }}
-                onMouseUp={() => {
-                  console.log("Slider mouseup - deactivating zoom");
-                  setIsZoomed(false);
-                }}
-                onTouchStart={() => {
-                  console.log("Slider touchstart - activating zoom");
-                  setIsZoomed(true);
-                  setZoomCenter(currentTime);
-                }}
-                onTouchEnd={() => {
-                  console.log("Slider touchend - deactivating zoom");
-                  setIsZoomed(false);
-                }}
-                className={styles.slider}
-              />
-              
-              {thumbnails.length > 0 && (() => {
-                  // Filter thumbnails for zoomed view
-                  // Dynamic zoom radius: 10% of duration, min 0.5s, max 5s
-                  const zoomRadius = Math.min(5, Math.max(0.5, duration * 0.1));
-                  const displayThumbs = isZoomed 
-                    ? thumbnails.filter(t => t.time >= zoomCenter - zoomRadius && t.time <= zoomCenter + zoomRadius)
-                    : thumbnails;
-                  
-                  console.log("Zoom state:", { isZoomed, zoomCenter, displayCount: displayThumbs.length, totalCount: thumbnails.length });
-                  
-                  return (
-                  <div 
-                    className={styles.filmstripContainer}
-                    style={{
-                      border: isZoomed ? '2px solid #00ff00' : 'none', // Green border when zoomed
-                      transition: 'border 0.1s ease'
-                    }}
-                  >
-                      <div className={styles.filmstrip}>
-                          {displayThumbs.length > 0 ? displayThumbs.map((thumb) => (
-                              <div 
-                                key={thumb.time} 
-                                className={styles.thumbnailContainer}
-                                style={{ 
-                                    flexBasis: `${100 / displayThumbs.length}%`,
-                                    width: `${100 / displayThumbs.length}%`,
-                                }}
-                                onClick={() => seekToTime(thumb.time)}
-                              >
-                                  <img src={thumb.url} alt={`${thumb.time.toFixed(1)}s`} className={styles.thumbnail} />
-                              </div>
-                          )) : (
-                            <div style={{ color: 'white', padding: '1rem' }}>No frames in zoomed range</div>
-                          )}
-                      </div>
-                      {isZoomed && (
-                        <div className={styles.zoomIndicator}>
-                          ZOOMED: {Math.max(0, zoomCenter - zoomRadius).toFixed(1)}s - {Math.min(duration, zoomCenter + zoomRadius).toFixed(1)}s ({displayThumbs.length} frames)
-                        </div>
-                      )}
+              <div className={styles.controls}>
+                <div className={styles.controlsHeader}>
+                  <div className={styles.buttonGroup}>
+                    <button
+                      className={styles.button}
+                      onClick={() => seekFrame("backward")}
+                      title="Previous Frame (Left Arrow)"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                    <button
+                      className={styles.button}
+                      onClick={togglePlay}
+                      title="Play/Pause (Space)"
+                    >
+                      {isPlaying ? <Pause size={20} /> : <Play size={20} />}
+                    </button>
+                    <button
+                      className={styles.button}
+                      onClick={() => seekFrame("forward")}
+                      title="Next Frame (Right Arrow)"
+                    >
+                      <ChevronRight size={20} />
+                    </button>
                   </div>
-                  );
-              })()}
+
+                  <div className={styles.timeDisplay}>
+                    <span>
+                      {Math.floor(currentTime / 60)}:
+                      {(currentTime % 60).toFixed(2).padStart(5, "0")} /{" "}
+                      {Math.floor(duration / 60)}:
+                      {(duration % 60).toFixed(2).padStart(5, "0")}
+                    </span>
+                  </div>
+
+                  <div className={styles.buttonGroup}>
+                    <div className={styles.fpsControl}>
+                      <Settings size={14} />
+                      <input
+                        type="number"
+                        value={fps}
+                        onChange={(e) => setFps(Number(e.target.value))}
+                        min={1}
+                        max={120}
+                        className={styles.fpsInput}
+                      />
+                      <span>FPS</span>
+                    </div>
+                    <button
+                      className={`${styles.button} ${styles.captureButton}`}
+                      onClick={captureFrame}
+                      title="Capture Frame (X)"
+                    >
+                      <ImageIcon size={18} />
+                      <span>Capture</span>
+                    </button>
+                    <button
+                      className={`${styles.button} ${styles.saveButton}`}
+                      onClick={saveFrame}
+                      title="Save Frame to File"
+                    >
+                      <Save size={18} />
+                      <span>Save Frame</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.timeline}>
+                <input
+                  type="range"
+                  min={0}
+                  max={duration}
+                  step="0.01"
+                  value={currentTime}
+                  onChange={(e) => {
+                    if (videoRef.current) {
+                      const newTime = parseFloat(e.target.value);
+                      videoRef.current.currentTime = newTime;
+                      setCurrentTime(newTime);
+                      if (isZoomed) {
+                        setZoomCenter(newTime);
+                      }
+                    }
+                  }}
+                  onMouseDown={() => {
+                    console.log("Slider mousedown - activating zoom");
+                    setIsZoomed(true);
+                    setZoomCenter(currentTime);
+                  }}
+                  onMouseUp={() => {
+                    console.log("Slider mouseup - deactivating zoom");
+                    setIsZoomed(false);
+                  }}
+                  onTouchStart={() => {
+                    console.log("Slider touchstart - activating zoom");
+                    setIsZoomed(true);
+                    setZoomCenter(currentTime);
+                  }}
+                  onTouchEnd={() => {
+                    console.log("Slider touchend - deactivating zoom");
+                    setIsZoomed(false);
+                  }}
+                  className={styles.slider}
+                />
+                
+                {thumbnails.length > 0 && (() => {
+                    // Filter thumbnails for zoomed view
+                    // Dynamic zoom radius: 10% of duration, min 0.5s, max 5s
+                    const zoomRadius = Math.min(5, Math.max(0.5, duration * 0.1));
+                    const displayThumbs = isZoomed 
+                      ? thumbnails.filter(t => t.time >= zoomCenter - zoomRadius && t.time <= zoomCenter + zoomRadius)
+                      : thumbnails;
+                    
+                    console.log("Zoom state:", { isZoomed, zoomCenter, displayCount: displayThumbs.length, totalCount: thumbnails.length });
+                    
+                    return (
+                    <div 
+                      className={styles.filmstripContainer}
+                      style={{
+                        border: isZoomed ? '2px solid #00ff00' : 'none',
+                        transition: 'border 0.1s ease'
+                      }}
+                    >
+                        <div className={styles.filmstrip}>
+                            {displayThumbs.length > 0 ? displayThumbs.map((thumb) => (
+                                <div 
+                                  key={thumb.time} 
+                                  className={styles.thumbnailContainer}
+                                  style={{ 
+                                      flexBasis: `${100 / displayThumbs.length}%`,
+                                      width: `${100 / displayThumbs.length}%`,
+                                  }}
+                                  onClick={() => seekToTime(thumb.time)}
+                                >
+                                    <img src={thumb.url} alt={`${thumb.time.toFixed(1)}s`} className={styles.thumbnail} />
+                                </div>
+                            )) : (
+                              <div style={{ color: 'white', padding: '1rem' }}>No frames in zoomed range</div>
+                            )}
+                        </div>
+                        {isZoomed && (
+                          <div className={styles.zoomIndicator}>
+                            ZOOMED: {Math.max(0, zoomCenter - zoomRadius).toFixed(1)}s - {Math.min(duration, zoomCenter + zoomRadius).toFixed(1)}s ({displayThumbs.length} frames)
+                          </div>
+                        )}
+                    </div>
+                    );
+                })()}
+              </div>
+
+              <p className={styles.helpText}>
+                Use <b>Arrow Keys</b> to scrub frame by frame. <b>Space</b> Play/Pause. <b>X</b> Capture frame.
+              </p>
             </div>
 
-            <p className={styles.helpText}>
-              Use <b>Arrow Keys</b> to scrub frame by frame. Space to
-              Play/Pause. Click timeline thumbnails to jump.
-            </p>
+            {/* Captured Images Panel */}
+            <div className={styles.capturedPanel}>
+              <div className={styles.capturedHeader}>
+                <h3>
+                  <ImageIcon size={16} />
+                  Captured ({capturedImages.length})
+                </h3>
+                {capturedImages.length > 0 && (
+                  <div className={styles.capturedActions}>
+                    <button onClick={downloadAllImages} title="Download All">
+                      <Download size={14} />
+                    </button>
+                    <button onClick={deleteAllImages} title="Delete All">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              <div className={styles.capturedGrid}>
+                {capturedImages.length === 0 ? (
+                  <p className={styles.emptyText}>Press <b>X</b> to capture frames</p>
+                ) : (
+                  capturedImages.map((img) => (
+                    <div key={img.id} className={styles.capturedItem}>
+                      <img src={img.url} alt={`Captured at ${img.time.toFixed(2)}s`} />
+                      <span className={styles.capturedTime}>{img.time.toFixed(2)}s</span>
+                      <div className={styles.capturedItemActions}>
+                        <button onClick={() => downloadImage(img)} title="Download">
+                          <Download size={12} />
+                        </button>
+                        <button onClick={() => deleteImage(img.id)} title="Delete">
+                          <X size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         </>
       )}
