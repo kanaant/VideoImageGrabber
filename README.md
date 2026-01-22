@@ -8,14 +8,17 @@ A Next.js web application for extracting high-quality frames from videos. All vi
 
 - **Drag & Drop Upload**: Easily upload videos by dragging them into the interface.
 - **Precision Control**: Navigate through videos frame-by-frame using keyboard arrows.
-- **Video Adjustments**: Rotate (90° steps), Flip (H/V), and Crop videos before capturing.
+- **Advanced Playback**: Control playback speed (0.25x - 2x) and toggle audio mute.
+- **Video Adjustments**: Rotate (90° steps), Flip (H/V), and interactive Crop (drag/resize) before capturing.
+- **WYSIWYG Capture**: Captured frames exactly match your video adjustments (Crop/Rotate/Flip).
 - **Video Metadata**: View detailed video info (Resolution, Codec, Duration, Size).
 - **Batch Review Mode**: Manage captured frames with Split-Screen Comparison and Carousel view.
-- **Visual Timeline**: Filmstrip of thumbnails for quick visual navigation.
-- **Timeline Zoom**: When dragging the slider, thumbnails zoom to show a detailed view around your position.
+- **Comparison View**: Smart auto-loading split view for side-by-side image inspection.
+- **Export Options**: Save single frames as PNG/JPG/WEBP, or batch download all frames with format selection.
+- **Visual Timeline**: Filmstrip of thumbnails for quick visual navigation with Zoom-on-Hover.
 - **Full Offline Support**: Install as PWA and use even when the server is down.
 - **Client-Side Processing**: No server interactions; everything happens in your browser.
-- **Modern UI**: Premium, mobile-friendly design.
+- **Responsive Design**: Full-width layout that automatically fits video and images to your browser window.
 
 ## Getting Started
 

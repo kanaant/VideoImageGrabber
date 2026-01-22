@@ -3,8 +3,9 @@
   flex-direction: column;
   gap: 2rem;
   width: 100%;
-  max-width: 1200px;
+  max-width: 98%;
   margin: 0 auto;
+  padding: 0 1rem;
 }
 
 .uploadArea {
@@ -451,7 +452,8 @@
 .previewArea {
   background: rgba(0, 0, 0, 0.4);
   border-radius: 1rem;
-  min-height: 400px;
+  height: calc(100vh - 250px);
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -459,9 +461,8 @@
 }
 
 .singlePreview {
-  position: relative;
-  max-width: 100%;
-  max-height: calc(100vh - 300px);
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -469,7 +470,7 @@
 
 .singlePreview img {
   max-width: 100%;
-  max-height: calc(100vh - 300px);
+  max-height: 100%;
   object-fit: contain;
   border-radius: 0.5rem;
 }
@@ -506,8 +507,7 @@
   cursor: pointer;
   transition: all 0.2s;
   overflow: hidden;
-  min-height: 200px;
-  max-height: calc(100vh - 300px);
+  height: 100%;
 }
 
 .splitPanel:hover {
@@ -876,13 +876,40 @@
   object-fit: cover;
 }
 
-.carouselItem span {
-  display: block;
-  text-align: center;
-  font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.7);
+.carouselControls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 0.25rem;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.carouselControls span {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.9);
   font-family: monospace;
+}
+
+.carouselBtn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.carouselBtn:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.deleteBtn:hover {
+  color: #ff5555;
+  background: rgba(255, 85, 85, 0.1);
 }
 
 .selectedBadge {

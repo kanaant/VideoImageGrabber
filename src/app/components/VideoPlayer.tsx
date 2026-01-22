@@ -285,11 +285,9 @@ export default function VideoPlayer() {
       }
   };
 
-  // Capture current frame to collection
-  const captureFrame = useCallback(() => {
-    if (!videoRef.current) return;
-
-    const canvas = document.createElement("canvas");
+  // Helper: Render current video frame to canvas with all transforms
+  const getTransformedCanvas = () => {
+    if (!videoRef.current) return null;
     const video = videoRef.current;
     
     // Determine FULL transformed dimensions
@@ -311,32 +309,33 @@ export default function VideoPlayer() {
         ch = (cropRegion.height / 100) * fullH;
     }
     
-    // Set canvas to crop size
+    const canvas = document.createElement("canvas");
     canvas.width = cw;
     canvas.height = ch;
     
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) return null;
 
-    // Apply adjustments
     ctx.save();
-    
     // 1. Shift View to Crop Origin
     ctx.translate(-cx, -cy);
-
     // 2. Move to Center of FULL image
     ctx.translate(fullW / 2, fullH / 2);
-    
     // 3. Rotate
     ctx.rotate((rotation * Math.PI) / 180);
-    
     // 4. Flip
     ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
-    
-    // 5. Draw Video Centered (Always -W/2, -H/2)
+    // 5. Draw Video Centered
     ctx.drawImage(video, -video.videoWidth / 2, -video.videoHeight / 2);
-    
     ctx.restore();
+    
+    return canvas;
+  };
+
+  // Capture current frame to collection
+  const captureFrame = useCallback(() => {
+    const canvas = getTransformedCanvas();
+    if (!canvas) return;
 
     const url = canvas.toDataURL("image/png");
 
@@ -348,7 +347,7 @@ export default function VideoPlayer() {
     };
 
     setCapturedImages((prev) => [...prev, newImage]);
-  }, [currentTime, rotation, flipH, flipV, cropRegion]);
+  }, [currentTime, rotation, flipH, flipV, cropRegion]); // Dependencies for callback
 
   // Delete a captured image
   const deleteImage = (id: string) => {
@@ -360,20 +359,118 @@ export default function VideoPlayer() {
     setCapturedImages([]);
   };
 
-  // Download a single image
-  const downloadImage = (img: CapturedImage) => {
-    const a = document.createElement("a");
-    a.href = img.url;
-    a.download = `frame-${img.time.toFixed(2)}s.png`;
-    a.click();
+  // Convert DataURL to Blob
+  const dataURLToBlob = async (dataURL: string) => {
+      const res = await fetch(dataURL);
+      return await res.blob();
+  }
+
+  // Download a single image (Save As)
+  const downloadImage = async (img: CapturedImage) => {
+    const defaultFilename = `frame-${img.time.toFixed(2)}`;
+    try {
+        // @ts-expect-error - File System Access API
+        if (window.showSaveFilePicker) {
+            // @ts-expect-error - File System Access API
+            const handle = await window.showSaveFilePicker({
+                suggestedName: defaultFilename,
+                types: [
+                    { description: 'PNG Image', accept: { 'image/png': ['.png'] } },
+                    { description: 'JPEG Image', accept: { 'image/jpeg': ['.jpg'] } },
+                    { description: 'WebP Image', accept: { 'image/webp': ['.webp'] } }
+                ],
+            });
+            const writable = await handle.createWritable();
+            
+            // Convert existing PNG DataURL to requested format if needed? 
+            // The stored image is PNG. If user selects JPG, we might need to convert.
+            // Simplified: Just write the blob. If extension mismatch, browser might handle or we re-encode.
+            // Proper way: Re-draw to canvas to convert format.
+            
+            const name = handle.name.toLowerCase();
+            let mimeType = "image/png";
+            if (name.endsWith(".jpg") || name.endsWith(".jpeg")) mimeType = "image/jpeg";
+            if (name.endsWith(".webp")) mimeType = "image/webp";
+            
+            // Load Blob to Image -> Canvas -> New Blob
+            const imgEl = new Image();
+            imgEl.src = img.url;
+            await new Promise(r => imgEl.onload = r);
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = imgEl.naturalWidth;
+            canvas.height = imgEl.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            if(ctx) {
+                // Determine background for non-transparent formats (JPG)
+                if (mimeType === 'image/jpeg') {
+                    ctx.fillStyle = '#000000'; // Black background for JPG
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+                ctx.drawImage(imgEl, 0, 0);
+                
+                const newBlob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, mimeType));
+                if (newBlob) {
+                    await writable.write(newBlob);
+                }
+            }
+            await writable.close();
+        } else {
+             // Fallback
+             const a = document.createElement("a");
+             a.href = img.url;
+             a.download = `${defaultFilename}.png`;
+             a.click();
+        }
+    } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+            console.error("Save failed", err);
+        }
+    }
   };
 
-  // Download all images
-  const downloadAllImages = () => {
-    capturedImages.forEach((img, index) => {
-      setTimeout(() => {
-        downloadImage(img);
-      }, index * 100); // Stagger downloads to avoid browser blocking
+  // Download all images (with format prompt)
+  const downloadAllImages = async () => {
+    // Simple prompt for format
+    // Ideally a custom modal, but for now window.prompt or just default to PNG
+    // User requested: "request the file format to save as"
+    // We can't use showSaveFilePicker for massive files easily in one go without directory handle.
+    // We will stick to "Download to Default Download Folder" for batch, but ask format first.
+    
+    // Check if we can show a simple dialog?
+    // Let's use a standard confirm/prompt flow for now.
+    // "Enter format (png, jpg, webp)"
+    
+    const format = window.prompt("Enter file format for batch download (png, jpg, webp):", "png");
+    if (!format || !['png', 'jpg', 'jpeg', 'webp'].includes(format.toLowerCase())) return;
+    
+    const mimeType = `image/${format.toLowerCase() === 'jpg' ? 'jpeg' : format.toLowerCase()}`;
+    const ext = format.toLowerCase() === 'jpeg' ? 'jpg' : format.toLowerCase();
+
+    capturedImages.forEach(async (img, index) => {
+      setTimeout(async () => {
+        // Convert if needed
+        const canvas = document.createElement('canvas');
+        const imgEl = new Image();
+        imgEl.src = img.url;
+        await new Promise(r => imgEl.onload = r);
+        canvas.width = imgEl.naturalWidth;
+        canvas.height = imgEl.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+             if (mimeType === 'image/jpeg') {
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+            ctx.drawImage(imgEl, 0, 0);
+            const dataUrl = canvas.toDataURL(mimeType);
+            
+            const a = document.createElement("a");
+            a.href = dataUrl;
+            a.download = `frame-${img.time.toFixed(2)}s.${ext}`;
+            a.click();
+        }
+      }, index * 200); 
     });
   };
 
@@ -399,64 +496,56 @@ export default function VideoPlayer() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [videoSrc, seekFrame, isPlaying, captureFrame]);
+  }, [videoSrc, seekFrame, isPlaying, captureFrame]); // Added captureFrame to dep array
 
   const saveFrame = async () => {
-    if (!videoRef.current) return;
-
-    const canvas = document.createElement("canvas");
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    // Draw frame to canvas
-    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    // Updated to use getTransformedCanvas to respect cropping/rotation
+    const canvas = getTransformedCanvas();
+    if (!canvas) return;
 
     const defaultFilename = `frame-${currentTime.toFixed(2)}`;
 
     try {
-      // @ts-expect-error - File System Access API types are not fully standardized in all setups
+      // @ts-expect-error - File System Access API
       if (window.showSaveFilePicker) {
-        // Use Native Save Dialog
         // @ts-expect-error - File System Access API
         const handle = await window.showSaveFilePicker({
           suggestedName: defaultFilename,
           types: [
-            {
-              description: "PNG Image",
-              accept: { "image/png": [".png"] },
-            },
-            {
-              description: "JPEG Image",
-              accept: { "image/jpeg": [".jpg"] },
-            },
-            {
-              description: "WebP Image",
-              accept: { "image/webp": [".webp"] },
-            },
+            { description: "PNG Image", accept: { "image/png": [".png"] } },
+            { description: "JPEG Image", accept: { "image/jpeg": [".jpg"] } },
+            { description: "WebP Image", accept: { "image/webp": [".webp"] } },
           ],
         });
 
         const writable = await handle.createWritable();
         
-        // Determine format based on chosen extension (default to png if unclear)
         const name = handle.name.toLowerCase();
         let mimeType = "image/png";
         if (name.endsWith(".jpg") || name.endsWith(".jpeg")) mimeType = "image/jpeg";
         if (name.endsWith(".webp")) mimeType = "image/webp";
 
-        // Convert canvas to blob
-        const blob = await new Promise<Blob | null>(resolve => 
-          canvas.toBlob(resolve, mimeType)
-        );
-        
-        if (blob) {
-          await writable.write(blob);
-          await writable.close();
+        // Handle JPEG background
+        if (mimeType === 'image/jpeg') {
+            const jpgCanvas = document.createElement('canvas');
+            jpgCanvas.width = canvas.width;
+            jpgCanvas.height = canvas.height;
+            const jCtx = jpgCanvas.getContext('2d');
+            if(jCtx) {
+                jCtx.fillStyle = '#000000';
+                jCtx.fillRect(0,0, jpgCanvas.width, jpgCanvas.height);
+                jCtx.drawImage(canvas, 0, 0);
+                const blob = await new Promise<Blob | null>(resolve => jpgCanvas.toBlob(resolve, mimeType));
+                if (blob) await writable.write(blob);
+            }
+        } else {
+             const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, mimeType));
+             if (blob) await writable.write(blob);
         }
+
+        await writable.close();
       } else {
-        // Fallback for browsers without File System Access API
+        // Fallback
         const dataUrl = canvas.toDataURL("image/png");
         const link = document.createElement("a");
         link.href = dataUrl;
@@ -597,10 +686,10 @@ export default function VideoPlayer() {
                 className={styles.videoWrapper} 
                 ref={videoWrapperRef}
                 style={{
+                    margin: '0 auto',
                     aspectRatio: (() => {
-                        // Calculate base aspect ratio
                         let baseW = 16, baseH = 9;
-                        if (videoMetadata) {
+                        if (videoMetadata && videoMetadata.width > 0 && videoMetadata.height > 0) {
                              if (rotation === 90 || rotation === 270) {
                                  baseW = videoMetadata.height;
                                  baseH = videoMetadata.width;
@@ -610,13 +699,37 @@ export default function VideoPlayer() {
                              }
                         }
                         
-                        // If crop applied, adjust aspect ratio
                         if (!isCropping && cropRegion) {
-                            // Crop dimensions are percentages of the base (rotated) dimensions
                             return `${(baseW * (cropRegion.width / 100))} / ${(baseH * (cropRegion.height / 100))}`;
                         }
-                        
                         return `${baseW}/${baseH}`;
+                    })(),
+                    // Fit to window logic:
+                    // Constrain width so that the resulting height (from aspect-ratio) does not exceed max-height (80vh approx)
+                    // We use (100vh - 250px) to match the CSS max-height
+                    maxWidth: (() => {
+                        let ratio = 16/9;
+                        let baseW = 16, baseH = 9;
+                         if (videoMetadata && videoMetadata.width > 0 && videoMetadata.height > 0) {
+                             if (rotation === 90 || rotation === 270) {
+                                 baseW = videoMetadata.height;
+                                 baseH = videoMetadata.width;
+                             } else {
+                                 baseW = videoMetadata.width;
+                                 baseH = videoMetadata.height;
+                             }
+                             
+                             if (!isCropping && cropRegion) {
+                                 ratio = (baseW * (cropRegion.width / 100)) / (baseH * (cropRegion.height / 100));
+                             } else {
+                                 ratio = baseW / baseH;
+                             }
+                         }
+                         
+                         // If ratio is NaN or Infinity, default
+                         if (isNaN(ratio) || !isFinite(ratio)) ratio = 16/9;
+                         
+                         return `calc((100vh - 250px) * ${ratio})`;
                     })()
                 }}
               >
@@ -1203,10 +1316,19 @@ export default function VideoPlayer() {
                   <button 
                     className={`${styles.button} ${isSplitView ? styles.activeToggle : ''}`}
                     onClick={() => {
-                      setIsSplitView(!isSplitView);
                       if (!isSplitView) {
-                        setSplitImages({ left: null, right: null });
-                        setFocusedPanel('left');
+                        // Entering Split View
+                        setIsSplitView(true);
+                        // Auto-load current preview into Left panel
+                        if (previewImageId) {
+                            setSplitImages({ left: previewImageId, right: null });
+                            setFocusedPanel('right'); // Auto-focus right for next selection
+                        } else {
+                            setSplitImages({ left: null, right: null });
+                            setFocusedPanel('left');
+                        }
+                      } else {
+                        setIsSplitView(false);
                       }
                     }}
                   >
@@ -1241,7 +1363,23 @@ export default function VideoPlayer() {
                     }}
                   >
                     <img src={img.url} alt={`${img.time.toFixed(2)}s`} />
-                    <span>{img.time.toFixed(2)}s</span>
+                    <div className={styles.carouselControls}>
+                        <button 
+                            className={styles.carouselBtn} 
+                            onClick={(e) => { e.stopPropagation(); downloadImage(img); }}
+                            title="Download"
+                        >
+                            <Download size={14} />
+                        </button>
+                        <span>{img.time.toFixed(2)}s</span>
+                        <button 
+                            className={`${styles.carouselBtn} ${styles.deleteBtn}`} 
+                            onClick={(e) => { e.stopPropagation(); deleteImage(img.id); }}
+                            title="Delete"
+                        >
+                            <Trash2 size={14} />
+                        </button>
+                    </div>
                     {(splitImages.left === img.id || splitImages.right === img.id) && (
                       <div className={styles.splitBadge}>
                         {splitImages.left === img.id ? 'L' : 'R'}
