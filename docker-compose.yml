@@ -1,0 +1,10 @@
+name: darksenses-demos
+services:
+  vid-image-grabber:
+    container_name: VidImagaGrabber
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3051:3000"
+    environment:
+      - PORT=3000

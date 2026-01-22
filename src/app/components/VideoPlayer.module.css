@@ -1,0 +1,208 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.uploadArea {
+  border: 2px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 1rem;
+  padding: 4rem 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: rgba(255, 255, 255, 0.03);
+  min-height: 400px;
+}
+
+.uploadArea:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.uploadArea.dragging {
+  border-color: #0070f3;
+  background: rgba(0, 112, 243, 0.1);
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.videoWrapper {
+  position: relative;
+  width: 100%;
+  background: #000;
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.video {
+  width: 100%;
+  max-height: 80vh;
+  display: block;
+}
+
+.controls {
+  background: rgba(26, 26, 26, 0.8);
+  backdrop-filter: blur(10px);
+  padding: 1.5rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.controlsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.buttonGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.button {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.primaryButton {
+  background: white;
+  color: black;
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+}
+
+.primaryButton:hover {
+  background: #f0f0f0;
+}
+
+.timeDisplay {
+  font-family: monospace;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.timeline {
+  width: 100%;
+  position: relative;
+  padding: 0 0.5rem;
+}
+
+.slider {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  position: relative;
+  z-index: 20;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: white;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.filmstripContainer {
+  position: relative;
+  width: 100%;
+  height: 80px; /* Increased height for zoom */
+  margin-top: 1rem;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center; /* Center items vertically */
+}
+
+.filmstrip {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  align-items: center;
+  overflow: visible; /* Allow zoom to overflow container slightly if needed, but main container clips */
+}
+
+.filmstrip::-webkit-scrollbar {
+  display: none;
+}
+
+.thumbnailContainer {
+  position: relative;
+  height: 60px; /* Base height */
+  flex-shrink: 0;
+  overflow: hidden;
+  cursor: pointer;
+  border-right: 1px solid rgba(255,255,255,0.1);
+  transition: width 0.1s ease-out, height 0.1s ease-out; /* Smooth resizing */
+  will-change: width, height;
+}
+
+
+
+.thumbnail {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.zoomIndicator {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+}
+
+.helpText {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.875rem;
+  margin: 0;
+}

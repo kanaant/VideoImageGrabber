@@ -1,0 +1,16 @@
+{
+  "name": "VidImageGrabber",
+  "short_name": "VidGrab",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "description": "Professional tool to extract high-quality frames from video.",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
