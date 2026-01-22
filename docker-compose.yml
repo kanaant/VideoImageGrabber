@@ -3,7 +3,7 @@ services:
   vid-image-grabber:
     container_name: VidImagaGrabber
     build: .
-    restart: unless-stopped
+    restart: no
     ports:
       - "3051:3000"
     environment:

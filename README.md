@@ -10,15 +10,15 @@ A Next.js web application for extracting high-quality frames from videos. All vi
 - **Precision Control**: Navigate through videos frame-by-frame using keyboard arrows.
 - **Visual Timeline**: Filmstrip of thumbnails for quick visual navigation.
 - **Timeline Zoom**: When dragging the slider, thumbnails zoom to show a detailed view around your position.
-- **Client-Side Processing**: No server interactions for video processing; everything happens in your browser.
-- **PWA Support**: Installable as a Progressive Web App.
+- **Full Offline Support**: Install as PWA and use even when the server is down.
+- **Client-Side Processing**: No server interactions; everything happens in your browser.
 - **Modern UI**: Premium, mobile-friendly design.
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (v18 or newer recommended)
+- Node.js (v20 or newer recommended)
 - npm, yarn, pnpm, or bun
 
 ### Installation
@@ -34,41 +34,39 @@ A Next.js web application for extracting high-quality frames from videos. All vi
 
    ```bash
    npm install
-   # or
-   yarn install
-   # or
-   pnpm install
    ```
 
 3. Run the development server:
 
    ```bash
    npm run dev
-   # or
-   yarn dev
-   # or
-   pnpm dev
    ```
 
-   The application will start on [http://localhost:3033](http://localhost:3033).
+   The application will start on [http://localhost:3000](http://localhost:3000).
+
+### Production Build
+
+For offline PWA support, run the production build:
+
+```bash
+npm run build
+node .next/standalone/server.js
+```
 
 ## Docker Deployment
 
-You can deploy the application using Docker.
+Deploy with Docker Compose:
 
-1. Build and run the container:
+```bash
+docker-compose up -d --build
+```
 
-   ```bash
-   docker-compose up -d --build
-   ```
-
-   The service `VidImagaGrabber` will be available at port `3033`.
+The service will be available at port `3051` (mapped to internal port `3000`).
 
 ## Built With
 
 - [Next.js](https://nextjs.org) - The React Framework
 - [Lucide React](https://lucide.dev) - Icons
-- [Tailwind CSS](https://tailwindcss.com) - Styling
 
 ## License
 
